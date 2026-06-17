@@ -170,7 +170,7 @@ namespace Shittim.Services.IrcClient
             await connection.SendEmote(2);
         }
 
-        private async Task HandlePrivMsg(string parameters, TcpClient client)
+       private async Task HandlePrivMsg(string parameters, TcpClient client)
         {
             string[] args = parameters.Split(' ', 2);
 
@@ -179,11 +179,11 @@ namespace Shittim.Services.IrcClient
 
             var payload = JsonSerializer.Deserialize(payloadStr, typeof(IrcMessage)) as IrcMessage;
 
-            if (payload.Text.StartsWith('/'))
+            if (payload.Text.StartsWith('/') || payload.Text.StartsWith('*'))
             {
                 var cmdStrings = payload.Text.Split(" ");
 
-                var cmdName = cmdStrings.First().Split('/').Last();
+                var cmdName = cmdStrings.First().TrimStart('/', '*');
                 var cmdArgs = cmdStrings[1..];
 
                 var connection = clients[client];
@@ -198,15 +198,25 @@ namespace Shittim.Services.IrcClient
                         return;
                     }
 
-                    await Task.Run(() => cmd?.Execute());
-                    await connection.SendChatMessage($"Command {cmdName} executed sucessfully! Please relog for it to take effect.");
+                    await cmd.Execute();
+                    
+                    await connection.SendChatMessage($"Command {cmdName} executed successfully! Please relog for it to take effect.");
                 }
                 catch (Exception ex)
                 {
-                    var cmdAtr = (CommandHandlerAttribute?)Attribute.GetCustomAttribute(CommandFactory.commands[cmdName], typeof(CommandHandlerAttribute));
+                    Type? cmdType = null;
+                    CommandFactory.commands.TryGetValue(cmdName, out cmdType);
+                    var usageStr = "Check your arguments.";
 
-                    await connection.SendChatMessage($"Command {cmdName} failed to execute!, " + ex.ToString());
-                    await connection.SendChatMessage($"Usage: {cmdAtr.Usage}");
+                    if (cmdType != null)
+                    {
+                        var cmdAtr = (CommandHandlerAttribute?)Attribute.GetCustomAttribute(cmdType, typeof(CommandHandlerAttribute));
+                        if (cmdAtr != null) usageStr = cmdAtr.Usage;
+                    }
+
+                    await connection.SendChatMessage($"Command {cmdName} failed to execute!");
+                    await connection.SendChatMessage($"Usage: {usageStr}");
+                    Log.Error($"Command error: {ex.Message}");
                 }
             }
         }
