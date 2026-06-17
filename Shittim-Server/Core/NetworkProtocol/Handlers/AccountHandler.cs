@@ -38,62 +38,69 @@ public class AccountHandler : ProtocolHandlerBase
         _missionService = missionService;
     }
 
-    [ProtocolHandler(Protocol.Account_CheckNexon)]
-    public async Task<AccountCheckNexonResponse> CheckNexon(
-        SchaleDataContext db,
-        AccountCheckNexonRequest request,
-        AccountCheckNexonResponse response)
+[ProtocolHandler(Protocol.Account_CheckNexon)]
+public async Task<AccountCheckNexonResponse> CheckNexon(
+    SchaleDataContext db,
+    AccountCheckNexonRequest request,
+    AccountCheckNexonResponse response)
+{
+    var ticketBytes = Convert.FromBase64String(request.EnterTicket);
+    var ticketString = Encoding.UTF8.GetString(ticketBytes);
+    var parts = ticketString.Split('/');
+    
+    var publisherId = long.Parse(parts[0]);
+    var token = parts[1];
+
+    var PrimaryAccount = await db.Accounts
+        .Where(a => a.ServerId >= 2) 
+        .OrderBy(a => a.ServerId)
+        .FirstOrDefaultAsync();
+
+    if (PrimaryAccount != null && PrimaryAccount.PublisherAccountId.HasValue)
     {
-        var ticketBytes = Convert.FromBase64String(request.EnterTicket);
-        var ticketString = Encoding.UTF8.GetString(ticketBytes);
-        var parts = ticketString.Split('/');
-        
-        var publisherId = long.Parse(parts[0]);
-        var token = parts[1];
-
-        var user = await db.UserAccounts
-            .FirstOrDefaultAsync(u => u.NpSN == publisherId);
-
-        if (user == null)
-        {
-            var newUser = new UserAccount 
-            { 
-                Uid = -1, 
-                NpSN = publisherId, 
-                NpToken = token 
-            };
-            db.UserAccounts.Add(newUser);
-
-            var newAccount = new AccountDBServer(publisherId);
-            db.Accounts.Add(newAccount);
-            
-            await db.SaveChangesAsync();
-
-            user = await db.UserAccounts.FirstAsync(u => u.NpSN == publisherId);
-            var account = await db.Accounts.FirstAsync(a => a.PublisherAccountId == publisherId);
-            
-            user.Uid = account.ServerId;
-            await AccountInitializationService.InitializeCompleteAccount(db, account);
-            await db.SaveChangesAsync();
-        }
-        else if (user.NpToken != token)
-        {
-            user.NpToken = token;
-            await db.SaveChangesAsync();
-        }
-
-        var sessionKey = await _sessionService.GenerateSession(publisherId);
-        var gatewayCrypto = GatewaySessionCryptoBuilder.Build(request.ClientGeneratedKey, request.ClientGeneratedIV);
-        
-        response.ResultState = 1;
-        response.SessionKey = sessionKey;
-        response.EncryptedKey = gatewayCrypto.EncryptedKey;
-        response.SignedKey = gatewayCrypto.SignedKey;
-        response.EncryptedIV = gatewayCrypto.EncryptedIV;
-        response.SignedIV = gatewayCrypto.SignedIV;
-        return response;
+        publisherId = PrimaryAccount
+.PublisherAccountId.Value;
     }
-    [ProtocolHandler(Protocol.Account_Auth)]
+
+    var user = await db.UserAccounts
+        .FirstOrDefaultAsync(u => u.NpSN == publisherId);
+
+    if (user == null)
+    {
+        var newUser = new UserAccount { Uid = -1, NpSN = publisherId, NpToken = token };
+        db.UserAccounts.Add(newUser);
+        var newAccount = new AccountDBServer(publisherId);
+        db.Accounts.Add(newAccount);
+        await db.SaveChangesAsync();
+
+        user = await db.UserAccounts.FirstAsync(u => u.NpSN == publisherId);
+        var account = await db.Accounts.FirstAsync(a => a.PublisherAccountId == publisherId);
+        user.Uid = account.ServerId;
+        await AccountInitializationService.InitializeCompleteAccount(db, account);
+        await db.SaveChangesAsync();
+    }
+    else
+    {
+        user.NpToken = token;
+        await db.SaveChangesAsync();
+    }
+
+    var sessionKey = await _sessionService.GenerateSession(publisherId);
+    
+    var gatewayCrypto = GatewaySessionCryptoBuilder.Build(request.ClientGeneratedKey, request.ClientGeneratedIV);
+
+    response.EncryptedKey = gatewayCrypto.EncryptedKey;
+    response.SignedKey = gatewayCrypto.SignedKey;
+    response.EncryptedIV = gatewayCrypto.EncryptedIV;
+    response.SignedIV = gatewayCrypto.SignedIV;
+    
+    response.ResultState = 1;
+    response.SessionKey = sessionKey;
+    
+    return response;
+}
+
+[ProtocolHandler(Protocol.Account_Auth)]
     public async Task<AccountAuthResponse> Auth(
         SchaleDataContext db,
         AccountAuthRequest request,
