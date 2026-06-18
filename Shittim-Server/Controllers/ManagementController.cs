@@ -597,6 +597,9 @@ public class ManagementController : ControllerBase
 
             var json = JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true });
             System.IO.File.WriteAllText(GachaConfigPath, json);
+
+            Shittim_Server.Core.GachaCommand.ClearCache();
+
             return Ok(new { success = true, path = GachaConfigPath });
         }
         catch (Exception ex)
@@ -628,8 +631,6 @@ public class ManagementController : ControllerBase
 
         return Ok(banners);
     }
-
-    // ----------------------------------------------------------------- events
 
     [HttpGet("events/seasons")]
     public IActionResult EventSeasons()
@@ -684,7 +685,6 @@ public class ManagementController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------- helpers
 
     private Dictionary<uint, string> LocalizeMap() =>
         _excel.GetTable<LocalizeEtcExcelT>()
