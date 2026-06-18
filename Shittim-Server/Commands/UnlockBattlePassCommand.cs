@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Shittim.Commands
 {
-    [CommandHandler("unlockbattlepass", "Command to unlock Battle Pass paid track (keep level)", "/unlockbattlepass")]
+    // ALTERADO: O gatilho mudou para "bp" e a rota de uso foi limpa para "/bp"
+    [CommandHandler("bp", "Command to unlock Battle Pass paid track (keep level)", "/bp")]
     internal class UnlockBattlePassCommand : Command
     {
         public UnlockBattlePassCommand(IClientConnection connection, string[] args, bool validate = true) : base(connection, args, validate) { }
@@ -36,9 +37,7 @@ namespace Shittim.Commands
                     };
                     context.BattlePasses.Add(bp);
                 }
-
-                // Unlock Paid Track (PurchaseGroupId 1)
-                // Don't change level or exp to allow grinding
+                
                 if (bp.PurchaseGroupId == 0)
                 {
                     bp.PurchaseGroupId = 1; 
