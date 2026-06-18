@@ -6,7 +6,7 @@ using Schale.Excel;
 
 namespace Shittim.Commands
 {
-    [CommandHandler("listitem", "List items by category or search term", "/listitem <category|searchterm>")]
+    [CommandHandler("itemfind", "List items by category or search term", "/itemfind <category|searchterm>")]
     internal class ListItemCommand : Command
     {
         public ListItemCommand(IClientConnection connection, string[] args, bool validate = true) : base(connection, args, validate) { }
@@ -61,7 +61,7 @@ namespace Shittim.Commands
                 case "skill":
                 case "bluray":
                 case "bd":
-                    results = itemExcel.Where(x => 
+                    results = itemExcel.Where(x =>  
                         x.Icon != null && 
                         (x.Icon.Contains("Skill", StringComparison.OrdinalIgnoreCase) || 
                          x.Icon.Contains("BD_", StringComparison.OrdinalIgnoreCase))).ToList();
