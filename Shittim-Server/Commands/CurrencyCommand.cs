@@ -6,7 +6,7 @@ using Schale.Data.GameModel;
 
 namespace Shittim.Commands
 {
-    [CommandHandler("currency", "Command to manage currency", "/currency [currencyId] [amount]")]
+    [CommandHandler("balance", "Command to manage account balance and currencies", "/balance [currencyId] [amount]")]
     internal class CurrencyCommand : Command
     {
         public CurrencyCommand(IClientConnection connection, string[] args, bool validate = true) : base(connection, args, validate) { }
@@ -92,10 +92,10 @@ namespace Shittim.Commands
 
         private async Task ShowHelp()
         {
-            await connection.SendChatMessage("/Currency - Command to manage currency");
-            await connection.SendChatMessage("Usage: /Currency [currencyID] [amount]");
+            await connection.SendChatMessage("/balance - Command to manage currency balance");
+            await connection.SendChatMessage("Usage: /balance [currencyID] [amount]");
             await connection.SendChatMessage("CurrencyID: credits | pyroxenes | 1, 2, 3...");
-            await connection.SendChatMessage("/currency show - List all currencies and their amounts");
+            await connection.SendChatMessage("/balance show - List all currencies and their amounts");
         }
     }
 }
