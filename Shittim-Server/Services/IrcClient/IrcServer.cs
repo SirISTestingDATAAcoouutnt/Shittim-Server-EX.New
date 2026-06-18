@@ -106,7 +106,7 @@ namespace Shittim.Services.IrcClient
                         break;
                 }
 
-                if (result != null || result != "")
+                if (result != null && result != "")
                     await writer.WriteLineAsync(result);
             }
 
@@ -118,7 +118,7 @@ namespace Shittim.Services.IrcClient
             listener.Stop();
         }
 
-        private async Task<string> HandleNick(string parameters) // welcomes
+        private async Task<string> HandleNick(string parameters)
         {
             return new Reply()
             {
@@ -128,7 +128,7 @@ namespace Shittim.Services.IrcClient
             }.ToString();
         }
 
-        private async Task HandleUser(string parameters, TcpClient client, StreamWriter writer) // sends over account server id
+        private async Task HandleUser(string parameters, TcpClient client, StreamWriter writer)
         {
             string[] args = parameters.Split(' ');
             var user_serverId = long.Parse(args[0].Split("_")[1]);
@@ -148,7 +148,7 @@ namespace Shittim.Services.IrcClient
             Log.Debug($"{args[0].Split("_")[0]} {user_serverId} logged in");
         }
 
-        private async Task HandleJoin(string parameters, TcpClient client) // sends over channel id
+        private async Task HandleJoin(string parameters, TcpClient client)
         {
             var channel = parameters;
 
@@ -164,63 +164,64 @@ namespace Shittim.Services.IrcClient
 
             Log.Debug($"User {connection.AccountServerId} joined {channel}");
 
-            // custom welcome
             await connection.SendChatMessage("Welcome, Sensei.");
             await connection.SendChatMessage("Type /help for more information.");
             await connection.SendEmote(2);
         }
 
-       private async Task HandlePrivMsg(string parameters, TcpClient client)
+private async Task HandlePrivMsg(string parameters, TcpClient client)
+{
+    string[] args = parameters.Split(' ', 2);
+
+    var channel = args[0];
+    var payloadStr = args[1].TrimStart(':');
+
+    var payload = JsonSerializer.Deserialize(payloadStr, typeof(IrcMessage)) as IrcMessage;
+
+    if (payload != null && payload.Text != null)
+    {
+        string rawText = payload.Text.Replace('*', '/').Trim();
+
+        if (rawText.StartsWith('/'))
         {
-            string[] args = parameters.Split(' ', 2);
+            var cmdStrings = rawText.Split(" ");
+            var cmdName = cmdStrings.First().TrimStart('/');
+            var cmdArgs = cmdStrings[1..];
 
-            var channel = args[0];
-            var payloadStr = args[1].TrimStart(':');
+            var connection = clients[client];
 
-            var payload = JsonSerializer.Deserialize(payloadStr, typeof(IrcMessage)) as IrcMessage;
-
-            if (payload.Text.StartsWith('/') || payload.Text.StartsWith('*'))
+            try
             {
-                var cmdStrings = payload.Text.Split(" ");
+                Command? cmd = CommandFactory.CreateCommand(cmdName, connection, cmdArgs);
 
-                var cmdName = cmdStrings.First().TrimStart('/', '*');
-                var cmdArgs = cmdStrings[1..];
-
-                var connection = clients[client];
-
-                try
+                if (cmd is null)
                 {
-                    Command? cmd = CommandFactory.CreateCommand(cmdName, connection, cmdArgs);
-
-                    if (cmd is null)
-                    {
-                        await connection.SendChatMessage($"Invalid command {cmdName}, try /help");
-                        return;
-                    }
-
-                    await cmd.Execute();
-                    
-                    await connection.SendChatMessage($"Command {cmdName} executed successfully! Please relog for it to take effect.");
+                    await connection.SendChatMessage($"Invalid command {cmdName}, try /help");
+                    return;
                 }
-                catch (Exception ex)
+
+                await cmd.Execute();
+                await connection.SendChatMessage($"Command {cmdName} executed successfully! Please relog for it to take effect.");
+            }
+            catch (Exception ex)
+            {
+                Type? cmdType = null;
+                CommandFactory.commands.TryGetValue(cmdName, out cmdType);
+                var usageStr = "Check your arguments.";
+
+                if (cmdType != null)
                 {
-                    Type? cmdType = null;
-                    CommandFactory.commands.TryGetValue(cmdName, out cmdType);
-                    var usageStr = "Check your arguments.";
-
-                    if (cmdType != null)
-                    {
-                        var cmdAtr = (CommandHandlerAttribute?)Attribute.GetCustomAttribute(cmdType, typeof(CommandHandlerAttribute));
-                        if (cmdAtr != null) usageStr = cmdAtr.Usage;
-                    }
-
-                    await connection.SendChatMessage($"Command {cmdName} failed to execute!");
-                    await connection.SendChatMessage($"Usage: {usageStr}");
-                    Log.Error($"Command error: {ex.Message}");
+                    var cmdAtr = (CommandHandlerAttribute?)Attribute.GetCustomAttribute(cmdType, typeof(CommandHandlerAttribute));
+                    if (cmdAtr != null) usageStr = cmdAtr.Usage;
                 }
+
+                await connection.SendChatMessage($"Command {cmdName} failed to execute!");
+                await connection.SendChatMessage($"Usage: {usageStr}");
+                Log.Error($"Command error: {ex.Message}");
             }
         }
-
+    }
+}
         private async Task<string> HandlePing(string parameters)
         {
             return new Reply().ToString();
